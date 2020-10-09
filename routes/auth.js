@@ -2,13 +2,31 @@ const express = require('express');
 const router = express.Router();
 const axios = require('axios');
 
-const dashRedirect = 'http://localhost:3000/dashboard';
+const dashboardURL = 'http://localhost:3000/dashboard';
 const msClient = {
 	tenantId: '8f671598-d6fe-4bb6-aa89-03fc7126dba1',
 	id: '02d1c5dc-917d-495a-bfe5-fee48aa54867',
     redirectURI: 'http://localhost:3001/login',
-    secret: 'LCy-4k.tLOY0~6zzBA~5iKs7o1Ogb.882T'
+    secret: process.env.DEGREEVIS_CLIENT_SECRET
 }
+
+const dbDeets = {
+    user: 'Test',
+    pass: process.env.DEGREEVIS_DB_PASS,
+    db: 'degreevis'
+}
+const MongoClient = require('mongodb').MongoClient;
+const uri = `mongodb+srv://${dbDeets.user}:${dbDeets.pass}@cluster0.bj2wy.mongodb.net/${dbDeets.db}?retryWrites=true&w=majority`;
+const mongoClient = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true });
+let userCollection;
+mongoClient.connect(err => {
+    if (err) console.error(err);
+    else console.log('Database Connected.');
+    userCollection = mongoClient.db("degreevis").collection("users");
+    userCollection.countDocuments({})
+    .then(count => console.log(`There are ${count} users in the DB.`))
+    .catch(console.error);
+});
 
 
 /* Take a JWT from Microsoft, obtain an OAuth token with it, and use it to create or confirm the existence of a user profile */
@@ -23,8 +41,8 @@ router.get('/', function(req, res, next) {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         data: `client_id=${msClient.id}&grant_type=authorization_code&redirect_uri=${encodeURI(msClient.redirectURI)}&response_mode=query&scope=openid&code=${code}&client_secret=${encodeURIComponent(msClient.secret)}`
     })
-    .then(response => {
-        console.log(response.data);
+    .then(async response => {
+        //console.log(response.data);
         res.cookie('ms_oauth_token', response.data.access_token, { maxAge: response.data.expires_in*1000, domain: 'localhost' });
         res.cookie('ms_oauth_idtoken', response.data.id_token, { maxAge: response.data.expires_in*1000, domain: 'localhost' });
         let oid, email, name;
@@ -41,9 +59,25 @@ router.get('/', function(req, res, next) {
         }
         if (!oid)
             return res.status(500).send('Failed to get identifier.');
-        // TODO: Check if an account is associated with this OID in the DB. If not, create one (using oid, email?, and name) before redirecting to the dashboard.
-        res.cookie('ms_oid', oid, { maxAge: 696969, domain: 'localhost' })
-        return res.redirect(dashRedirect);
+        // Check if an account is associated with this OID in the DB.
+        return userCollection.countDocuments({ oid }).then(async exists => {
+            if (!exists) { // If not, create one before redirecting to the dashboard.
+                let failedToCreate;
+                await userCollection.insertOne({ oid, email, name, courses: [] })
+                .then(dbResult => {
+                    if (!dbResult || !dbResult.insertedCount)
+                        failedToCreate = true;
+                })
+                .catch(err => {
+                    console.error(err);
+                    failedToCreate = true;
+                });
+                if (failedToCreate)
+                    return res.status(500).send('Failed to create user.');
+            }
+            res.cookie('ms_oid', oid, { maxAge: 696969, domain: 'localhost' })
+            return res.redirect(dashboardURL);
+        });
     })
     .catch(err => {
         console.error(err);
