@@ -2,11 +2,11 @@ const express = require('express');
 const router = express.Router();
 const axios = require('axios');
 
-const dashboardURL = 'http://localhost:3000/dashboard';
+const dashboardURL =process.env.DASHBOARD_URL;
 const msClient = {
 	tenantId: '8f671598-d6fe-4bb6-aa89-03fc7126dba1',
 	id: '02d1c5dc-917d-495a-bfe5-fee48aa54867',
-    redirectURI: 'http://localhost:3001/login',
+    redirectURI:process.env.REDIRECT_URL,
     secret: process.env.DEGREEVIS_CLIENT_SECRET
 }
 
