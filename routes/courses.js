@@ -10,11 +10,12 @@ const dbDeets = {
 const MongoClient = require('mongodb').MongoClient;
 const uri = `mongodb+srv://${dbDeets.user}:${dbDeets.pass}@cluster0.bj2wy.mongodb.net/${dbDeets.db}?retryWrites=true&w=majority`;
 const mongoClient = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true });
-let courseCollection;
+let courseCollection, userCollection;
 mongoClient.connect(err => {
     if (err) console.error(err);
     else console.log('Database Connected.');
     courseCollection = mongoClient.db("degreevis").collection("courses");
+    userCollection = mongoClient.db("degreevis").collection("users");
     /*courseCollection.countDocuments({})
     .then(count => console.log(`There are ${count} courses in the DB.`))
     .catch(console.error);*/
@@ -56,7 +57,20 @@ router.get('/:identifiers', async function(req, res, next) {
         abbrArray = collegeDepts[identifiers];
     } else if (identifiers.includes(',')) { // identifiers is a list of course departments
         abbrArray = identifiers.split(',').map(i => i.trim());
-    } else { // identifiers is a single course department
+    } else { // identifiers is a user id or single course department
+        const userExists = await userCollection.countDocuments({ user_id: identifiers });
+        if (userExists) {
+            return userCollection.findOne({ user_id: identifiers }, { projection: { _id: 0, courses: 1 } }).then(userData => {
+                if (!userData || !userData.courses || !userData.courses.length)
+                    return res.status(500).send('Failed to get user courses.');
+                console.log(`Retrieved ${userData.courses.length} user courses\n`);
+                return res.send(userData.courses);
+            })
+            .catch(err => {
+                console.error(err);
+                return res.status(500);
+            });
+        }
         abbrArray = [identifiers];
     }
     if (abbrArray.find(i => !allDepts.includes(i)))
@@ -64,15 +78,41 @@ router.get('/:identifiers', async function(req, res, next) {
 
     return courseCollection.find({ deptID: { $in: abbrArray } }, { projection: { _id: 0 } }).toArray()
     .then(docs => {
-        console.log(`Retrieved ${docs.length} courses from departments:\n[${abbrArray.join(', ')}]\n`);
         if (!docs || !docs.length)
             return res.status(500).send('Failed to get courses.');
+        console.log(`Retrieved ${docs.length} courses from departments:\n[${abbrArray.join(', ')}]\n`);
         return res.send(docs);
     })
     .catch(err => {
         console.error(err);
         return res.status(500);
     });
+});
+
+router.get('/:user_id/:course_id', async function(req, res, next) {
+    console.log('');
+    const { user_id, course_id } = req.params;
+    if (!user_id || !course_id)
+        return res.status(400).send('Need to specify a user ID and course ID.');
+
+    const userExists = await userCollection.countDocuments({ user_id });
+    if (!userExists)
+        return res.status(404).send('User does not exist.');
+        
+    return userCollection.findOne({ user_id: identifiers, 'courses.id': course_id }, { projection: { _id: 0, courses: 1 } })
+    .then(userData => {
+        if (!userData || !userData.courses || !userData.courses.length)
+            return res.status(500).send('Failed to get user course.');
+        if (!userData.courses.find(c => c.id === course_id))
+            return res.status(404).send('User does not have this course.');
+        console.log(`Retrieved user course\n`);
+        return res.send(userData.courses.find(c => c.id === course_id));
+    })
+    .catch(err => {
+        console.error(err);
+        return res.status(500);
+    });
+        
 });
 
 router.get('/', async function(req, res, next) {
