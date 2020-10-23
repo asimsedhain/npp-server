@@ -14,7 +14,7 @@ router.get('/', function(req, res) {
         url: `https://login.microsoftonline.com/${process.env.TENANT_ID}/oauth2/v2.0/token`,
         method: 'post',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        data: `client_id=${process.env.CLIENT_ID}&grant_type=authorization_code&redirect_uri=${encodeURI(process.env.REDIRECT_URL)}&response_mode=query&scope=openid&code=${code}&client_secret=${encodeURIComponent(process.env.CLIENT_SECRET)}`
+        data: `client_id=${process.env.CLIENT_ID}&grant_type=authorization_code&redirect_uri=${encodeURI(process.env.REDIRECT_URL)}&response_mode=query&scope=openid+profile&code=${code}&client_secret=${encodeURIComponent(process.env.CLIENT_SECRET)}`
     })
     .then(async response => {
         //console.log(response.data);
@@ -30,7 +30,7 @@ router.get('/', function(req, res) {
             name = aTokenInfo.name;
         } catch(err) {
             console.error(err);
-            return res.status(500);
+            return res.status(500).send();
         }
         if (!oid)
             return res.status(500).send('Failed to get identifier.');
@@ -56,7 +56,7 @@ router.get('/', function(req, res) {
     })
     .catch(err => {
         console.error(err);
-        return res.status(500);
+        return res.status(500).send();
     });
 });
 

@@ -40,17 +40,20 @@ router.get('/:identifiers', async function(req, res) {
     } else if (identifiers.includes(',')) { // identifiers is a list of course departments
         abbrArray = identifiers.split(',').map(i => i.trim());
     } else { // identifiers is a user id or single course department
-        const userExists = await userCollection.countDocuments({ user_id: identifiers });
+        let userExists;
+        if (identifiers.includes('-') && identifiers.length > 30) { // likely oid format
+            userExists = await userCollection.countDocuments({ oid: identifiers });
+        }
         if (userExists) {
-            return userCollection.findOne({ user_id: identifiers }, { projection: { _id: 0, courses: 1 } }).then(userData => {
+            return userCollection.findOne({ oid: identifiers }, { projection: { _id: 0, courses: 1 } }).then(userData => {
                 if (!userData || !userData.courses || !userData.courses.length)
                     return res.status(500).send('Failed to get user courses.');
                 console.log(`Retrieved ${userData.courses.length} user courses\n`);
-                return res.send(userData.courses);
+                return res.status(200).send(userData.courses);
             })
             .catch(err => {
                 console.error(err);
-                return res.status(500);
+                return res.status(500).send();
             });
         }
         abbrArray = [identifiers];
@@ -63,11 +66,11 @@ router.get('/:identifiers', async function(req, res) {
         if (!docs || !docs.length)
             return res.status(500).send('Failed to get courses.');
         console.log(`Retrieved ${docs.length} courses from departments:\n[${abbrArray.join(', ')}]\n`);
-        return res.send(docs);
+        return res.status(200).send(docs);
     })
     .catch(err => {
         console.error(err);
-        return res.status(500);
+        return res.status(500).send();
     });
 });
 
@@ -78,22 +81,22 @@ router.get('/:user_id/:course_id', async function(req, res) {
     if (!user_id || !course_id)
         return res.status(400).send('Need to specify a user ID and course ID.');
 
-    const userExists = await userCollection.countDocuments({ user_id });
+    const userExists = await userCollection.countDocuments({ oid: user_id });
     if (!userExists)
         return res.status(404).send('User does not exist.');
         
-    return userCollection.findOne({ user_id: identifiers, 'courses.id': course_id }, { projection: { _id: 0, courses: 1 } })
+    return userCollection.findOne({ oid: user_id, 'courses.id': course_id }, { projection: { _id: 0, 'courses.$': 1 } })
     .then(userData => {
         if (!userData || !userData.courses || !userData.courses.length)
             return res.status(500).send('Failed to get user course.');
         if (!userData.courses.find(c => c.id === course_id))
             return res.status(404).send('User does not have this course.');
         console.log(`Retrieved user course\n`);
-        return res.send(userData.courses.find(c => c.id === course_id));
+        return res.status(200).send(userData.courses.find(c => c.id === course_id));
     })
     .catch(err => {
         console.error(err);
-        return res.status(500);
+        return res.status(500).send();
     });     
 });
 
@@ -103,7 +106,7 @@ router.post('/:user_id', async function(req, res) {
     const { user_id } = req.params;
     if (!user_id)
         return res.status(400).send('No user id specified.');
-    const userExists = await userCollection.countDocuments({ user_id });
+    const userExists = await userCollection.countDocuments({ oid: user_id });
     if (!userExists)
         return res.status(404).send('User does not exist.');
     
@@ -120,6 +123,8 @@ router.post('/:user_id', async function(req, res) {
         for (const prop of ['deptID', 'courseNumber', 'name', 'time'])
             if (!c[prop])
                 return res.status(400).send(`Course "${c.id}" is missing the field "${prop}".`);
+        if (!c.time.time_start || !c.time.time_end || !Array.isArray(c.time.days))
+            return res.status(400).send(`Course "${c.id}" has an invalid "time" field.`);
         for (const prop of ['prerequisites', 'corequisites', 'requirementsTo'])
             if (c[prop])
                 for (const j in c[prop])
@@ -143,10 +148,10 @@ router.post('/:user_id', async function(req, res) {
         });
     }
 
-    return userCollection.updateOne({ user_id }, { $set: { courses } }).then(dbResult => {
+    return userCollection.updateOne({ oid: user_id }, { $set: { courses } }).then(dbResult => {
         if (!dbResult || !dbResult.modifiedCount)
-            return res.status(204);
-        return res.status(200);
+            return res.status(204).send();
+        return res.status(200).send();
     })
     .catch(err => {
         console.error(err);
@@ -162,11 +167,11 @@ router.get('/', async function(req, res) {
         console.log(`Retrieved all ${docs.length} courses`);
         if (!docs || !docs.length)
             return res.status(500).send('Failed to get all courses.');
-        return res.send(docs);
+        return res.status(200).send(docs);
     })
     .catch(err => {
         console.error(err);
-        return res.status(500);
+        return res.status(500).send();
     });
 });
 
