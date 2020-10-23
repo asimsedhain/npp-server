@@ -2,44 +2,19 @@ const express = require('express');
 const router = express.Router();
 const axios = require('axios');
 
-const dashboardURL =process.env.DASHBOARD_URL;
-const msClient = {
-	tenantId: '8f671598-d6fe-4bb6-aa89-03fc7126dba1',
-	id: '02d1c5dc-917d-495a-bfe5-fee48aa54867',
-    redirectURI:process.env.REDIRECT_URL,
-    secret: process.env.DEGREEVIS_CLIENT_SECRET
-}
-
-const dbDeets = {
-    user: 'Test',
-    pass: process.env.DEGREEVIS_DB_PASS,
-    db: 'degreevis'
-}
-const MongoClient = require('mongodb').MongoClient;
-const uri = `mongodb+srv://${dbDeets.user}:${dbDeets.pass}@cluster0.bj2wy.mongodb.net/${dbDeets.db}?retryWrites=true&w=majority`;
-const mongoClient = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true });
-let userCollection;
-mongoClient.connect(err => {
-    if (err) console.error(err);
-    else console.log('Database Connected.');
-    userCollection = mongoClient.db("degreevis").collection("users");
-    userCollection.countDocuments({})
-    .then(count => console.log(`There are ${count} users in the DB.`))
-    .catch(console.error);
-});
-
-
 /* Take a JWT from Microsoft, obtain an OAuth token with it, and use it to create or confirm the existence of a user profile */
-router.get('/', function(req, res, next) {
-    const { error, error_description } = req.query;
+router.get('/', function(req, res) {
+    const userCollection = req.app.locals.db.collection("users");
+
+    const { error, error_description, code } = req.query;
     if (error)
         return res.status(500).send(`${error} - ${error_description}`);
-    const { code, state } = req.query;
+
     return axios({
-        url: `https://login.microsoftonline.com/${msClient.tenantId}/oauth2/v2.0/token`,
+        url: `https://login.microsoftonline.com/${process.env.TENANT_ID}/oauth2/v2.0/token`,
         method: 'post',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        data: `client_id=${msClient.id}&grant_type=authorization_code&redirect_uri=${encodeURI(msClient.redirectURI)}&response_mode=query&scope=openid&code=${code}&client_secret=${encodeURIComponent(msClient.secret)}`
+        data: `client_id=${process.env.CLIENT_ID}&grant_type=authorization_code&redirect_uri=${encodeURI(process.env.REDIRECT_URL)}&response_mode=query&scope=openid&code=${code}&client_secret=${encodeURIComponent(process.env.CLIENT_SECRET)}`
     })
     .then(async response => {
         //console.log(response.data);
@@ -76,18 +51,13 @@ router.get('/', function(req, res, next) {
                     return res.status(500).send('Failed to create user.');
             }
             res.cookie('ms_oid', oid, { maxAge: 696969, domain: 'localhost' })
-            return res.redirect(dashboardURL);
+            return res.redirect(process.env.DASHBOARD_URL);
         });
     })
     .catch(err => {
         console.error(err);
         return res.status(500);
     });
-});
-
-/* Use a refresh token to obtain a new bearer token and confirm the existence of a user profile. !! only needed/available when using offline_access scope !! */
-router.get('/refresh', function(req, res, next) {
-    res.send('respond with a resource');
 });
 
 module.exports = router;

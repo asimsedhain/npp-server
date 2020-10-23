@@ -2,26 +2,6 @@ const express = require('express');
 const router = express.Router();
 const axios = require('axios');
 
-const dbDeets = {
-    user: 'Test',
-    pass: process.env.DEGREEVIS_DB_PASS,
-    db: 'degreevis'
-}
-const MongoClient = require('mongodb').MongoClient;
-const uri = `mongodb+srv://${dbDeets.user}:${dbDeets.pass}@cluster0.bj2wy.mongodb.net/${dbDeets.db}?retryWrites=true&w=majority`;
-const mongoClient = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true });
-let courseCollection, userCollection;
-mongoClient.connect(err => {
-    if (err) console.error(err);
-    else console.log('Database Connected.');
-    courseCollection = mongoClient.db("degreevis").collection("courses");
-    userCollection = mongoClient.db("degreevis").collection("users");
-    /*courseCollection.countDocuments({})
-    .then(count => console.log(`There are ${count} courses in the DB.`))
-    .catch(console.error);*/
-});
-
-
 const collegeNames = {
     CAS: 'College of Arts and Sciences',
     CEP: 'College of Education and Psychology',
@@ -45,7 +25,9 @@ for (const cid in collegeDepts) {
     allDepts = allDepts.concat(collegeDepts[cid]);
 }
 
-router.get('/:identifiers', async function(req, res, next) {
+router.get('/:identifiers', async function(req, res) {
+    const courseCollection = req.app.locals.db.collection("courses");
+    const userCollection = req.app.locals.db.collection("users");
     console.log('');
     const { identifiers } = req.params;
     if (!identifiers)
@@ -89,7 +71,8 @@ router.get('/:identifiers', async function(req, res, next) {
     });
 });
 
-router.get('/:user_id/:course_id', async function(req, res, next) {
+router.get('/:user_id/:course_id', async function(req, res) {
+    const userCollection = req.app.locals.db.collection("users");
     console.log('');
     const { user_id, course_id } = req.params;
     if (!user_id || !course_id)
@@ -111,11 +94,68 @@ router.get('/:user_id/:course_id', async function(req, res, next) {
     .catch(err => {
         console.error(err);
         return res.status(500);
-    });
-        
+    });     
 });
 
-router.get('/', async function(req, res, next) {
+router.post('/:user_id', async function(req, res) {
+    const courseCollection = req.app.locals.db.collection("courses");
+    const userCollection = req.app.locals.db.collection("users");
+    const { user_id } = req.params;
+    if (!user_id)
+        return res.status(400).send('No user id specified.');
+    const userExists = await userCollection.countDocuments({ user_id });
+    if (!userExists)
+        return res.status(404).send('User does not exist.');
+    
+    // validate course array
+    const courseArray = req.body;
+    if (!Array.isArray(courseArray))
+        return res.status(400).send('Body must be an array of courses.');
+    const validCourseIDs = await courseCollection.find({}, { projection: { _id: 0, id: 1 } }).toArray().then(arr => arr.map(c => c.id));
+    const courses = [];
+    for (const i in courseArray) {
+        const c = courseArray[i];
+        if (!c.id || !validCourseIDs.includes(c.id))
+            return res.status(400).send(`Course with id "${c.id}" does not exist.`);
+        for (const prop of ['deptID', 'courseNumber', 'name', 'time'])
+            if (!c[prop])
+                return res.status(400).send(`Course "${c.id}" is missing the field "${prop}".`);
+        for (const prop of ['prerequisites', 'corequisites', 'requirementsTo'])
+            if (c[prop])
+                for (const j in c[prop])
+                    if (!validCourseIDs.includes(c[prop][j]))
+                        return res.status(400).send(`Course "${c[prop][j]}" does not exist (from field "${prop}").`);
+        courses.push({
+            id: c.id,
+            deptID: c.deptID,
+            courseNumber: c.courseNumber,
+            name: c.name,
+            description: c.description || '',
+            prerequisites: c.prerequisites || [],
+            corequisites: c.corequisites || [],
+            requirementsTo: c.requirementsTo || [],
+            time: c.time,
+            labels: c.labels || [],
+            column: c.column,
+            enrolled: c.enrolled || false,
+            planned: c.planned || false,
+            completed: c.completed || false
+        });
+    }
+
+    return userCollection.updateOne({ user_id }, { $set: { courses } }).then(dbResult => {
+        if (!dbResult || !dbResult.modifiedCount)
+            return res.status(204);
+        return res.status(200);
+    })
+    .catch(err => {
+        console.error(err);
+        return res.status(500).send('Failed to save user courses.');
+    });
+});
+
+router.get('/', async function(req, res) {
+    const courseCollection = req.app.locals.db.collection("courses");
     console.log('');
     return courseCollection.find({}, { projection: { _id: 0 } }).toArray()
     .then(docs => {
