@@ -74,6 +74,40 @@ router.get('/:identifiers', async function(req, res) {
     });
 });
 
+router.get('/search/:query_text', async function(req, res) {
+    const courseCollection = req.app.locals.db.collection("courses");
+    console.log('');
+    const { query_text } = req.params;
+    if (!query_text)
+        return res.status(400).send('No query text was specified.');
+    
+    let idCandidate = parseInt(query_text);
+    if (isNaN(idCandidate))
+        idCandidate = null;
+
+    const queryArray = [
+        { id: query_text },
+        { courseNumber: idCandidate },
+        { deptID: query_text },
+        { name: query_text },
+        { description: query_text },
+        { $text: { $search: query_text } }
+    ];
+    //console.log(queryArray);
+
+    return courseCollection.find({ $or: queryArray }, { projection: { _id: 0 } }).toArray()
+    .then(docs => {
+        if (!docs || !docs.length)
+            return res.status(500).send('Failed to get courses.');
+        console.log(`Retrieved ${docs.length} courses from search text: ${query_text}\n`);
+        return res.status(200).send(docs);
+    })
+    .catch(err => {
+        console.error(err);
+        return res.status(500).send();
+    });
+});
+
 router.get('/:user_id/:course_id', async function(req, res) {
     const userCollection = req.app.locals.db.collection("users");
     console.log('');
