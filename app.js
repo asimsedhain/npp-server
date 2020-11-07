@@ -10,6 +10,8 @@ const usersRouter = require('./routes/users');
 const loginRouter = require('./routes/login');
 const logoutRouter = require('./routes/logout');
 const coursesRouter = require('./routes/courses');
+const labelsRouter = require('./routes/labels');
+const columnsRouter = require('./routes/columns');
 
 const app = express();
 
@@ -60,7 +62,7 @@ function isAuthValid(req, res, next) {
             'Authorization': `Bearer ${token}`
         }
     }).then(response => {
-        console.log(response.data);
+        //console.log(response.data);
         return next();
     }).catch(err => {
         console.error(err.response ? err.response.data.error : err);
@@ -71,8 +73,11 @@ function isAuthValid(req, res, next) {
 // oid to user_id matching middleware
 function isOidValid(req, res, next) {
     const id = req.params.user_id;
+    if (!id) {
+        return next();
+    }
     if (id.includes('-') && id.length > 30 && req.oid !== id) { // likely oid format
-        return res.status(403).send('User ID specified does not match authorized user.');
+        return res.status(400).send('User ID specified does not match authorized user.');
     }
     return next();
 }
@@ -86,5 +91,13 @@ app.use('/courses', isDbConnected);
 app.use('/courses', isAuthValid);
 app.use('/courses', isOidValid);
 app.use('/courses', coursesRouter);
+app.use('/label', isDbConnected);
+app.use('/label', isAuthValid);
+app.use('/label', isOidValid);
+app.use('/label', labelsRouter);
+app.use('/column', isDbConnected);
+app.use('/column', isAuthValid);
+app.use('/column', isOidValid);
+app.use('/column', columnsRouter);
 
 module.exports = app;

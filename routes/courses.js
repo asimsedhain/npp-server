@@ -141,10 +141,7 @@ router.post('/:user_id', async function(req, res) {
             requirementsTo: c.requirementsTo || [],
             time: c.time,
             labels: c.labels || [],
-            column: c.column,
-            enrolled: c.enrolled || false,
-            planned: c.planned || false,
-            completed: c.completed || false
+            column: c.column || null
         });
     }
 
