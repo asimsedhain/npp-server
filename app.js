@@ -61,7 +61,6 @@ function isDbConnected(req, res, next) {
 // authentication middleware
 function isAuthValid(req, res, next) {
 	const token = req.cookies.ms_oauth_token;
-	console.log(token);
 	if (!token) return res.status(401).send(`No access token provided.`);
 	const parts = token.split(".");
 	if (parts.length < 3)

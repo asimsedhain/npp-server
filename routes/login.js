@@ -38,7 +38,7 @@ router.get('/', function(req, res) {
         return userCollection.countDocuments({ oid }).then(async exists => {
             if (!exists) { // If not, create one before redirecting to the dashboard.
                 let failedToCreate;
-                await userCollection.insertOne({ oid, email, name, courses: [] })
+                await userCollection.insertOne({ oid, email, name, courses: {} })
                 .then(dbResult => {
                     if (!dbResult || !dbResult.insertedCount)
                         failedToCreate = true;
@@ -50,7 +50,7 @@ router.get('/', function(req, res) {
                 if (failedToCreate)
                     return res.status(500).send('Failed to create user.');
             }
-            res.cookie('ms_oid', oid, { maxAge: 696969, domain: 'localhost' })
+            res.cookie('ms_oid', oid, { maxAge: response.data.expires_in*1000, domain: 'localhost' })
             return res.redirect(process.env.DASHBOARD_URL);
         });
     })
