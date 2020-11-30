@@ -18,8 +18,8 @@ router.get('/', function(req, res) {
     })
     .then(async response => {
         //console.log(response.data);
-        res.cookie('ms_oauth_token', response.data.access_token, { maxAge: response.data.expires_in*1000, domain: 'localhost' });
-        res.cookie('ms_oauth_idtoken', response.data.id_token, { maxAge: response.data.expires_in*1000, domain: 'localhost' });
+        res.cookie('ms_oauth_token', response.data.access_token, { maxAge: response.data.expires_in*1000, domain: 'uttyler-deg-vis.herokuapp.com' });
+        res.cookie('ms_oauth_idtoken', response.data.id_token, { maxAge: response.data.expires_in*1000, domain: 'uttyler-deg-vis.herokuapp.com' });
         let oid, email, name;
         try {
             const atPieces = response.data.access_token.split('.');
@@ -50,7 +50,7 @@ router.get('/', function(req, res) {
                 if (failedToCreate)
                     return res.status(500).send('Failed to create user.');
             }
-            res.cookie('ms_oid', oid, { maxAge: response.data.expires_in*1000, domain: 'localhost' })
+            res.cookie('ms_oid', oid, { maxAge: response.data.expires_in*1000, domain: 'uttyler-deg-vis.herokuapp.com' })
             return res.redirect(process.env.DASHBOARD_URL);
         });
     })
