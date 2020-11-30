@@ -1,13 +1,15 @@
 var express = require("express");
 var router = express.Router();
+const path = require("path")
 
 /* GET home page. */
 router.get("/", function (req, res, next) {
-	res.json({ "Npp Version": "1.0" });
+
+	res.sendFile(path.resolve(__dirname, "../public", "index.html"))
 });
 
-router.get("/paste", function (req, res, next) {
-	res.json({ "Paste Version": "3.0" });
+router.get("/dashboard", function (req, res, next) {
+	res.sendFile(path.resolve(__dirname, "../public", "index.html"))
 });
 
 module.exports = router;

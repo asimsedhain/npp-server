@@ -36,7 +36,8 @@ app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
-
+app.use(express.static("public"))
+app.
 // connect to the database
 const dbURI = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.bj2wy.mongodb.net/${process.env.DB_NAME}?retryWrites=true&w=majority`;
 const dbClient = new MongoClient(dbURI, {
