@@ -230,12 +230,8 @@ router.get("/search/:query_text", async function (req, res) {
 	if (isNaN(idCandidate)) idCandidate = null;
 
 	const queryArray = [
-		{ id: query_text },
 		{ courseNumber: idCandidate },
-		{ deptID: query_text },
 		{ name: query_text },
-		{ description: query_text },
-		{ $text: { $search: query_text } },
 	];
 	//console.log(queryArray);
 
